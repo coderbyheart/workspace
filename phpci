@@ -1,0 +1,494 @@
+#!/usr/bin/php
+<?php
+
+    /**
+    * Subversion Command Line Helper
+    *
+    * @author Markus Tacker <mtacker@itfuture.de>
+    * @version $Id: phpci 24 2010-06-18 09:15:38Z m $
+    * @copyright Copyright &copy; 2005 IT Future AG
+    */
+
+    // Set error reporting
+    error_reporting(E_ALL);
+
+    // Echo my name
+    echo "\033[1m" . basename($_SERVER['SCRIPT_NAME']) . ' $Rev: 24 $ ' . "\033[0m\n";
+
+    // file_put_contents check
+    if (!function_exists('file_put_contents')) {
+        require_once 'PHP/Compat.php';
+        PHP_Compat::loadFunction('file_put_contents');
+    }
+
+    // Open terminal
+    $tty = @fopen('/dev/tty', 'r');
+    if (!$tty) $tty = fopen('php://stdin', 'r');
+
+    // Default settings
+    $default_settings = array(
+        'confirm_commit' => true,
+        'dry_run' => false,
+        'skip_unknown' => false,
+        'usetrac' => false,
+        'interactive' => false,
+		'trac_host' => false,
+		'trac_path' => false,
+		'trac_user' => false,
+		'trac_query_user' => false,
+		'trac_pass' => false,
+		'fetch_log' => true,
+    );
+
+    // Command history
+    $cmdhistory = $_SERVER['HOME'] . '/.phpci_cmdhistory';
+
+    // Check if user has a config file
+    $userrc = $_SERVER['HOME'] . '/.phpcirc';
+    if (file_exists($userrc)) {
+        $user_settings = parse_ini_file( $userrc, true );
+    } else {
+        $user_settings = array();
+    }
+
+	// get current or given dir
+    $dir = (isset($_SERVER['argv'][1])) ? $_SERVER['argv'][1] : '';
+    if ( empty( $dir ) ) $dir = $_SERVER[ 'PWD' ];
+    $dir = realpath($dir);
+
+    // Update current settings
+    $settings = isset($user_settings['/']) ? array_merge($default_settings, $user_settings['/']) : $default_settings;
+    unset( $user_settings['/'] );
+    ksort( $user_settings );
+
+    foreach ( $user_settings as $prefix => $perdir_settings ) {
+		if ( substr( $dir, 0, strlen( $prefix ) ) === $prefix )  $settings = array_merge( $settings, $perdir_settings );
+    }
+
+    // Read commit comment history
+    $usercomments = $_SERVER['HOME'] . '/.phpci_history';
+    $comment_history = array();
+    if (file_exists($usercomments)) {
+        foreach (file($usercomments) as $comment) {
+            $comment = trim($comment);
+            if (empty($comment)) continue;
+            $comment_history[] = $comment;
+        }
+    }
+
+    // Read Trac-Tickets
+    if ( $settings[ 'usetrac' ] ) {
+		Trac::$host = $settings[ 'trac_host' ];
+		Trac::$path = $settings[ 'trac_path' ];
+		Trac::$user = $settings[ 'trac_user' ];
+		Trac::$query_user = $settings[ 'trac_query_user' ];
+		Trac::$pass = $settings[ 'trac_pass' ];
+		$comment_history = array_merge( $comment_history, Trac::getTickets() );
+	}
+
+    // Newline
+    echo "\n";
+
+    // Storage array for groups
+    $groups = array();
+
+    // Work on current or given dir
+    commit($dir);
+
+    // Commit groups
+    foreach ($groups as $comment => $files) {
+        $comment_history[] = $comment;
+        $cmd = 'svn commit ' . ($settings['interactive'] ? '' : '--non-interactive') . ' -m ' . escapeshellarg($comment);
+        foreach ($files as $file) {
+            $cmd .= ' ' . escapeshellarg($file);
+        }
+        confirm($cmd);
+    }
+
+    function commit($commit_file = '')
+    {
+        global $tty, $groups, $comment_history, $settings;
+
+        $status_list = status($commit_file);
+        if (empty($status_list)) {
+            echo "Nothing to commit.\n";
+            return;
+        }
+
+        foreach ($status_list as $line) {
+            if (empty($line)) continue;
+            if (preg_match('/^Performing status on external item at /', $line)) continue;
+            if (!preg_match('/^([ !?MADXCR])([ CM])[ L][ +][ S][ UKOTB] +(.*)$/', $line, $match)) {
+                echo 'Unmatched line: ' . $line . "\n";
+                exit;
+            }
+            $status     = $match[1];
+            $dir_status = $match[2];
+            $file       = $match[3];
+
+            do {
+                $continue = true;
+                $actions = array(
+                    'd' => 'Show diff',
+                    'r' => 'Revert',
+                    'a' => 'Add the file',
+                    's' => 'Skip',
+                    'g' => 'Group',
+                    'c' => 'Commit',
+                    'i' => 'Ignore',
+                    'x' => 'Delete',
+                    'l' => 'Delete local file',
+                    'u' => 'dos2unix',
+                );
+
+                $diff = 0;
+                switch ($status) {
+                case 'R':
+                case 'M':
+                    $status_text = 'MODIFIED';
+                    $diff = 2;
+                    unset($actions['a']);
+                    unset($actions['i']);
+                    unset($actions['x']);
+                    unset($actions['l']);
+                    break;
+                case 'A':
+                    $status_text = 'ADDED';
+                    unset($actions['a']);
+                    unset($actions['i']);
+                    unset($actions['x']);
+                    unset($actions['l']);
+                    unset($actions['u']);
+                    break;
+                case '?':
+                    if ($settings['skip_unknown']) {
+                        echo "\033[1;47m>>> " . $file . " \033[0m\n    ";
+                        echo "UNVERSIONED - skipped\n\n";
+                        $continue = true;
+                        continue 3;
+                    }
+                    $status_text = 'UNVERSIONED';
+                    unset($actions['d']);
+                    unset($actions['g']);
+                    unset($actions['r']);
+                    unset($actions['c']);
+                    unset($actions['x']);
+                    unset($actions['u']);
+                    break;
+                case 'D':
+                    $status_text = 'DELETED';
+                    unset($actions['a']);
+                    unset($actions['d']);
+                    unset($actions['i']);
+                    unset($actions['x']);
+                    unset($actions['l']);
+                    unset($actions['u']);
+                    break;
+                case '!':
+                    $status_text = 'MISSING';
+                    unset($actions['a']);
+                    unset($actions['d']);
+                    unset($actions['c']);
+                    unset($actions['g']);
+                    unset($actions['i']);
+                    unset($actions['l']);
+                    unset($actions['u']);
+                    break;
+                case 'C':
+                    $status_text = 'CONFLICT';
+                    $diff = 1;
+                    unset($actions['a']);
+                    unset($actions['i']);
+                    unset($actions['x']);
+                    unset($actions['l']);
+                    unset($actions['u']);
+                    break;
+                case ' ':
+                    // "." Not supported yet
+                    /*
+                    if ($file == '.') {
+                        echo "Not implemented.\n";
+                        $continue = false;
+                        continue(2);
+                    }
+                    */
+
+                    switch ($dir_status) {
+                    case 'M':
+                        $status_text = 'MODIFIED DIRECTORY';
+                        $diff = 2;
+                        unset($actions['a']);
+                        unset($actions['i']);
+                        unset($actions['x']);
+                        unset($actions['l']);
+                        unset($actions['u']);
+                        break;
+                    default:
+                        $status_text = 'Unknown status "' . $dir_status . '" for directory "' . $file . '"';
+                    }
+                    break;
+                default:
+                    echo 'Unknown status "' . $status . '" for file "' . $file . '"';
+                    exit;
+                }
+
+                echo "\033[1;47m>>> " . $file . " \033[0m\n    ";
+                echo $status_text . "\n\n";
+
+                if ($diff) {
+                    $cmd = 'svn diff ';
+                    $cmd .= ($diff == 2) ? '-N ' : '';
+                    $cmd .= escapeshellarg($file);
+                    passthru($cmd);
+                    echo "\n\n";
+                    echo "\033[1;47m>>> " . $file . " \033[0m\n    ";
+                    echo $status_text . "\n\n";
+                    if ($diff === 2 && $settings['fetch_log']) {
+						// List 10 last logs
+						echo "\033[36mLast 10 log messages:\033[0m\n";
+						$log = null;
+						exec('`which svn` log --xml ' . escapeshellarg($file), $log);
+						$xml = simplexml_load_string(join("\n", $log));
+						$nLog = 0;
+						foreach( $xml->children() as $logEntry) {
+							if ($nLog >= 10) break;
+							echo str_pad( 'r' . $logEntry->attributes()->revision . ':', 7, ' ', STR_PAD_LEFT ) . ' ' . $logEntry->msg . "\n";
+							$nLog++;
+						}
+						echo "\n";
+                    }
+                }
+
+                echo "Please select:\n";
+                foreach ($actions as $key => $val) {
+                    echo "  \033[31m" . $key . "\033[0m " . $val . "\n";
+                }
+
+                if (isset($actions['g'])) {
+                    $n = 1;
+                    $id2comment = array();
+                    if (count($groups) > 0) {
+                        echo "Use the number to add this file to an existing group:\n";
+                    }
+                    foreach ($groups as $comment => $files) {
+                        echo "  \033[31m" . $n . "\033[0m " . $comment . "\n";
+                        $n_files = 0;
+                        echo "\033[37m";
+                        foreach (array_reverse($files) as $group_file) {
+                            $n_files++;
+                            echo '    ' . $group_file . "\n";
+                            if ($n_files > 3) {
+                                echo '    ' . (count($files)) . " total files\n";
+                                break;
+                            }
+                        }
+                        echo "\033[0m";
+                        $id2comment[$n] =  $comment;
+                        $n++;
+                    }
+                }
+
+                do {
+                    echo "> ";
+                    $key = trim(fgets($tty, 1024));
+                } while ((isset($actions['g']) and count($groups) > 0) ? (!isset($actions[$key]) and !preg_match('/^[0-9]+$/', $key)) : !isset($actions[$key]));
+
+                switch ($key) {
+                case 'd':
+                    passthru('svn diff ' . escapeshellarg($file));
+                    break;
+                case 's':
+                    $continue = false;
+                    break;
+                case 'g':
+                    $input = readComment();
+                    $groups[$input] = array($file);
+                    $continue = false;
+                    break;
+                case 'a':
+                    passthru('svn add ' . escapeshellarg($file));
+                    commit($file);
+                    $continue = false;
+                    break;
+                case 'r':
+                    passthru('svn revert -R ' . escapeshellarg($file));
+                    commit($file);
+                    $continue = false;
+                    break;
+                case 'c':
+                    $input = readComment();
+                    confirm('svn commit ' . ($settings['interactive'] ? '' : '--non-interactive') . ' -m ' . escapeshellarg($input) . ' ' . escapeshellarg($file));
+                    $continue = false;
+                    break;
+                case 'i':
+                    $dir = dirname($file);
+                    $filename = basename($file);
+                    exec('svn propget svn:ignore ' . escapeshellarg($dir), $old_ignore);
+                    $ignore = '';
+                    if (!empty($old_ignore)) {
+                        $ignore .= join("\n", $old_ignore);
+                    }
+                    $ignore .= $filename . "\n";
+                    exec('svn propset svn:ignore ' . escapeshellarg($ignore) . ' ' . escapeshellarg($dir));
+                    // confirm('svn commit ' . ($settings['interactive'] ? '' : '--non-interactive') . ' -m ' . escapeshellarg('Ignoring ' . $filename) . ' ' . $dir);
+                    echo 'svn commit ' . ($settings['interactive'] ? '' : '--non-interactive') . ' --depth empty -m ' . escapeshellarg('Ignoring ' . $filename) . ' ' . $dir . "\n";
+                    $continue = false;
+                    break;
+                case 'x':
+                    passthru('svn delete ' . escapeshellarg($file));
+                    commit($file);
+                    $continue = false;
+                    break;
+                case 'l':
+                    $cmd = ((is_dir($file)) ? 'rm -r ' : 'rm ') . escapeshellarg($file);
+                    if (ask('Really delete ' . escapeshellarg($file) . '?', $cmd)) {
+                        $continue = false;
+                    }
+                    break;
+                case 'u':
+                    passthru('dos2unix ' . escapeshellarg($file));
+                    break;
+                default:
+                    if (preg_match('/^[0-9]+$/', $key) and isset($groups[$id2comment[$key]])) {
+                        $groups[$id2comment[$key]][] = $file;
+                        $continue = false;
+                    }
+                    break;
+                }
+            } while ($continue);
+            echo "\n";
+        }
+    }
+
+    function status($file = '')
+    {
+		global $settings;
+        exec('svn status --ignore-externals ' . ($settings['interactive'] ? '' : '--non-interactive') . ' ' . escapeshellarg($file), $svn_status, $code);
+        if ($code != 0) {
+            echo "svn status failed.\n";
+            exit;
+        }
+        $return = array();
+        foreach ($svn_status as $line) {
+            if (preg_match('/^X /', $line)) continue;
+            $return[] = $line;
+        }
+        return $return;
+    }
+
+    function confirm($cmd)
+    {
+        global $tty, $settings, $cmdhistory;
+        if ($settings['confirm_commit']) {
+            echo "\n\033[1;31mPress ENTER to run this command or Ctrl+C to abort:\033[0m\n";
+            echo $cmd . "\n";
+            fgets($tty, 1024);
+        }
+        if ($settings['dry_run']) {
+            echo 'Skipping ' . $cmd . "\n";
+        } else {
+            if ($fp = fopen($cmdhistory, 'a+')) {
+                if (flock($fp, LOCK_EX)) {
+                    fputs($fp, $cmd . "\n");
+                    flock($fp, LOCK_UN);
+                }
+                fclose($fp);
+            }
+            passthru($cmd);
+        }
+    }
+
+    function readComment()
+    {
+        global $tty, $comment_history;
+        // Echo Comments from History
+        echo "Please select a comment or enter a new one: \n";
+        foreach ($comment_history as $key => $comment) {
+            echo "  \033[31m" . ($key + 1) . "\033[0m " . trim($comment) . "\n";
+        }
+        // Read input
+        echo "> ";
+        $input = trim(fgets($tty, 1024));
+        // Return history comment if a number is pressed
+        if (preg_match('/^[0-9]+$/', $input)) {
+            return trim($comment_history[($input - 1)]);
+        }
+        // Save new comment
+        $comment_history[] = $input;
+        return $input;
+    }
+
+    function ask($msg, $cmd)
+    {
+        global $tty;
+        echo "\n\033[1;31m$msg\033[0m [y/n]\n";
+        echo "> ";
+        $key = trim(fgets($tty, 1024));
+        if ($key !== 'y') {
+            return false;
+        }
+        passthru($cmd);
+        return true;
+    }
+
+    // Save comments
+    $comment_history = array_reverse($comment_history);
+    $comment_history = array_unique($comment_history);
+    $comment_history = array_splice($comment_history, 0, 10);
+    if (!empty($comment_history)) {
+        if (!file_put_contents($usercomments, join("\n", $comment_history))) {
+            echo "\033[0;37mFailed to write " . $usercomments."\033[0m\n";
+        }
+    }
+
+    // Echo finishing message
+    echo 'Thanks for using ' . basename($_SERVER['SCRIPT_NAME']) . ".\n";
+
+    class Trac
+    {
+		public static $host;
+		public static $path;
+		public static $user;
+		public static $pass;
+		public static $query_user;
+
+		public static function getTickets()
+		{
+			echo "\n";
+			echo "\033[36m" . 'Fetching tickets from ' . self::$host . self::$path . ' ...';
+
+			$return = array();
+			$tickets = self::request( xmlrpc_encode_request( 'ticket.query', 'status=new|assigned|reopened&order=priority' ) );
+			if ( empty( $tickets ) ) return $return;
+			foreach ( $tickets as $ticket_id ) {
+				$Ticket = self::request( xmlrpc_encode_request( 'ticket.get', $ticket_id ) );
+				if ( !isset( $Ticket[3]['summary'] ) ) continue;
+				$return[] = 'See #' . $ticket_id . ' ' . utf8_encode( $Ticket[3]['summary'] );
+			}
+			echo ' Done. ' . count( $return ) . ' Tickets found.' . "\033[0m\n";
+			return $return;
+		}
+
+		protected static function request( $request )
+		{
+			$header = array();
+			$header[] = 'Content-Type: text/xml';
+			$header[] = 'Content-Length: ' . strlen( $request );
+
+			$curl = curl_init();
+			// curl_setopt( $curl, CURLOPT_VERBOSE, true );
+			curl_setopt( $curl, CURLOPT_RETURNTRANSFER, true );
+			curl_setopt( $curl, CURLOPT_HTTPHEADER, $header );
+			curl_setopt( $curl, CURLOPT_SSL_VERIFYPEER, false );
+			curl_setopt( $curl, CURLOPT_USERPWD, self::$user . ':' . self::$pass );
+			curl_setopt( $curl, CURLOPT_URL, self::$host . self::$path );
+			curl_setopt( $curl, CURLOPT_POSTFIELDS, $request );
+			$result = curl_exec( $curl );
+			$httpcode = curl_getinfo( $curl, CURLINFO_HTTP_CODE );
+			curl_close( $curl );
+			if ( $httpcode  === 200 ) return xmlrpc_decode( $result );
+			throw new Exception( 'Trac XMLRPC-Request failed.' );
+		}
+    }
+
+?>

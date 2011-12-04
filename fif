@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# Find in Files
+
+if [ "$2x" == "x" ]
+then
+    TYPE="php"
+else
+    TYPE=$2
+fi
+
+find ./ -iname "*.$TYPE" -print0 | xargs -0 grep -nHi --color "$1"
