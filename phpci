@@ -31,7 +31,6 @@
         'dry_run' => false,
         'skip_unknown' => false,
         'usetrac' => false,
-        'interactive' => false,
 		'trac_host' => false,
 		'trac_path' => false,
 		'trac_user' => false,
@@ -98,7 +97,7 @@
     // Commit groups
     foreach ($groups as $comment => $files) {
         $comment_history[] = $comment;
-        $cmd = 'svn commit ' . ($settings['interactive'] ? '' : '--non-interactive') . ' -m ' . escapeshellarg($comment);
+        $cmd = 'svn commit ' . ' -m ' . escapeshellarg($comment);
         foreach ($files as $file) {
             $cmd .= ' ' . escapeshellarg($file);
         }
@@ -317,7 +316,7 @@
                     break;
                 case 'c':
                     $input = readComment();
-                    confirm('svn commit ' . ($settings['interactive'] ? '' : '--non-interactive') . ' -m ' . escapeshellarg($input) . ' ' . escapeshellarg($file));
+                    confirm('svn commit -m ' . escapeshellarg($input) . ' ' . escapeshellarg($file));
                     $continue = false;
                     break;
                 case 'i':
@@ -330,8 +329,7 @@
                     }
                     $ignore .= $filename . "\n";
                     exec('svn propset svn:ignore ' . escapeshellarg($ignore) . ' ' . escapeshellarg($dir));
-                    // confirm('svn commit ' . ($settings['interactive'] ? '' : '--non-interactive') . ' -m ' . escapeshellarg('Ignoring ' . $filename) . ' ' . $dir);
-                    echo 'svn commit ' . ($settings['interactive'] ? '' : '--non-interactive') . ' --depth empty -m ' . escapeshellarg('Ignoring ' . $filename) . ' ' . $dir . "\n";
+                    echo 'svn commit --depth empty -m ' . escapeshellarg('Ignoring ' . $filename) . ' ' . $dir . "\n";
                     $continue = false;
                     break;
                 case 'x':
@@ -363,7 +361,7 @@
     function status($file = '')
     {
 		global $settings;
-        exec('svn status --ignore-externals ' . ($settings['interactive'] ? '' : '--non-interactive') . ' ' . escapeshellarg($file), $svn_status, $code);
+        exec('svn status --ignore-externals ' . escapeshellarg($file), $svn_status, $code);
         if ($code != 0) {
             echo "svn status failed.\n";
             exit;
