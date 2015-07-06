@@ -1,7 +1,10 @@
 #!/bin/bash
 
 MAX_MAJOR=`git tag | awk '{ print substr($1, 2, 1)}' | sort -h | uniq | tail -n 1`
+LAST_VER=`git tag | grep -E ^v$MAX_MAJOR | awk '{ print substr($1, 2)}' | sort -h | tail -n 1`
 NEXT_VER=`git tag | grep -E ^v$MAX_MAJOR | awk '{ print substr($1, 2)}' | sort -h | tail -n 1 | awk -F . '{ print "v" $1 "." $2 "." $3 + 1; }'`
+LOG=`git log --pretty=format:" - %s (%H)" v$LAST_VER..HEAD`
 
-git tag $NEXT_VER -s
+echo $LOG | git tag $NEXT_VER -s --file -
+git tag -v $NEXT_VER
 git push origin $NEXT_VER
