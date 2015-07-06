@@ -1,0 +1,7 @@
+#!/bin/bash
+
+MAX_MAJOR=`git tag | awk '{ print substr($1, 2, 1)}' | sort -h | uniq | tail -n 1`
+NEXT_VER=`git tag | grep -E ^v$MAX_MAJOR | awk '{ print substr($1, 2)}' | sort -h | tail -n 1 | awk -F . '{ print "v" $1 "." $2 "." $3 + 1; }'`
+
+git tag $NEXT_VER -s
+git push origin $NEXT_VER
