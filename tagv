@@ -20,6 +20,23 @@ MINOR)
 esac
 
 LOG=`git log --pretty=format:" - %s (%H)" v$LAST_VER..HEAD`
-echo $LOG | git tag $NEXT_VER -s --file -
-git tag -v $NEXT_VER
-git push origin $NEXT_VER
+echo $LOG
+if [ -f "package.json" ]; then
+    sed -i -r -e "s/\"version\":\W+\"[^\"]+\",/\"version\": \"$NEXT_VER\"/" package.json
+    git diff
+fi
+read -p "Update from v$LAST_VER to v$NEXT_VER?" -n 1 -r
+if [[ $REPLY =~ ^[Yy]$ ]]
+then
+    if [ -f "package.json" ]; then
+        git add package.json
+        git commit -m "Bumping version."
+    fi
+    echo $LOG | git tag v$NEXT_VER -s --file -
+    git tag -v $NEXT_VER
+    git push origin $NEXT_VER
+else
+    if [ -f "package.json" ]; then
+        git checkout -- package.json
+    fi
+fi
