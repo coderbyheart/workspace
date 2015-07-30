@@ -33,8 +33,8 @@ then
         git commit -m "Bumping version."
     fi
     echo $LOG | git tag v$NEXT_VER -s --file -
-    git tag -v $NEXT_VER
-    git push origin $NEXT_VER
+    git tag -v v$NEXT_VER
+    git push origin v$NEXT_VER
 else
     if [ -f "package.json" ]; then
         git checkout -- package.json
