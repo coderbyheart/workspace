@@ -19,25 +19,40 @@ MINOR)
   ;;
 esac
 
+function updatePackage() {
+    if [ -f $1 ]; then
+        sed -i -r -e "s/\"version\":\W+\"$LAST_VER\"/\"version\": \"$NEXT_VER\"/" $1
+        git diff
+    fi
+}
+
+function commitPackage() {
+    if [ -f $1 ]; then
+        git add $1
+        git commit -m "Tagging release v$NEXT_VER."
+    fi
+}
+
 LOG=`git log --pretty=format:" - %s (%H)" v$LAST_VER..HEAD`
 echo $LOG
-if [ -f "package.json" ]; then
-    sed -i -r -e "s/\"version\":\W+\"[^\"]+\"/\"version\": \"$NEXT_VER\"/" package.json
-    git diff
-fi
-read -p "Update from v$LAST_VER to v$NEXT_VER? " -n 1 -r
+updatePackage package.json
+updatePackage composer.json
+
+read -p "Update from v$LAST_VER to v$NEXT_VER? " -n 2 -r
 if [[ $REPLY =~ ^[Yy]$ ]]
 then
     echo ""
-    if [ -f "package.json" ]; then
-        git add package.json
-        git commit -m "Tagging release v$NEXT_VER."
-    fi
-    echo $LOG | git tag v$NEXT_VER -s --file -
+    commitPackage package.json
+    commitPackage composer.json
+    echo -e "Tagging release v$NEXT_VER.\n\n$LOG" | git tag v$NEXT_VER -s --file -
     git tag -v v$NEXT_VER
     git push origin v$NEXT_VER
+    git push
 else
     if [ -f "package.json" ]; then
         git checkout -- package.json
+    fi
+    if [ -f "composer.json" ]; then
+        git checkout -- composer.json
     fi
 fi
