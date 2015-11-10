@@ -26,6 +26,13 @@ function updatePackage() {
     fi
 }
 
+function updateSetupPy() {
+    if [ -f $1 ]; then
+        sed -i -r -e "s/\"version\"=\W+\"$LAST_VER\"/\"version\"=\"$NEXT_VER\"/" $1
+        git diff
+    fi
+}
+
 function commitPackage() {
     if [ -f $1 ]; then
         git add $1
@@ -37,6 +44,7 @@ LOG=`git log --pretty=format:" - %s (%H)" v$LAST_VER..HEAD`
 echo $LOG
 updatePackage package.json
 updatePackage composer.json
+updateSetupPy setup.py
 
 read -p "Update from v$LAST_VER to v$NEXT_VER? " -n 2 -r
 if [[ $REPLY =~ ^[Yy]$ ]]
