@@ -9,9 +9,14 @@
 # tmp/*
 
 FORMAT=$(echo -e "%w%f written")
-EXCLUDE=`cat .inotifyignore | sed -e 's/[\/&\\.]/\\\\&/g' | tr \\\\n \\|`
+if [ -f .inotifyignore ];
+then
+    EXCLUDE="--exclude \"`cat .inotifyignore | sed -e 's/[\/&\\.]/\\\\&/g' | tr \\\\n \\|`\""
+else
+    EXCLUDE=""
+fi
 "$@"
-while inotifywait -qre close_write --exclude "$EXCLUDE" --format "$FORMAT" .
+while inotifywait -qre close_write $EXCLUDE --format "$FORMAT" .
 do
     "$@"
 done
