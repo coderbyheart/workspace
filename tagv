@@ -36,7 +36,7 @@ function updateSetupPy() {
 function commitPackage() {
     if [ -f $1 ]; then
         git add $1
-        git commit -m "Tagging release v$NEXT_VER."
+        git commit -m "Release v$NEXT_VER"
     fi
 }
 
@@ -53,7 +53,7 @@ then
     commitPackage package.json
     commitPackage composer.json
     commitPackage setup.py
-    echo -e "Tagging release v$NEXT_VER.\n\n$LOG" | git tag v$NEXT_VER -s --file -
+    echo -e "Release v$NEXT_VER\n\n$LOG" | git tag v$NEXT_VER -s --file -
     git tag -v v$NEXT_VER
     git push origin v$NEXT_VER
     git push
