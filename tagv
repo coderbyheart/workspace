@@ -22,6 +22,11 @@ esac
 function updatePackage() {
     if [ -f $1 ]; then
         sed -i -r -e "s/\"version\":\W+\"$LAST_VER\"/\"version\": \"$NEXT_VER\"/" $1
+        if [ "$1" = "package.json" ]; then
+            if [ -f npm-shrinkwrap.json ]; then
+                npm shrinkwrap
+            fi
+        fi
         git diff
     fi
 }
@@ -36,6 +41,11 @@ function updateSetupPy() {
 function commitPackage() {
     if [ -f $1 ]; then
         git add $1
+        if [ "$1" = "package.json" ]; then
+            if [ -f npm-shrinkwrap.json ]; then
+                git add npm-shrinkwrap.json
+            fi
+        fi
         git commit -m "Release v$NEXT_VER"
     fi
 }
@@ -60,6 +70,9 @@ then
 else
     if [ -f "package.json" ]; then
         git checkout -- package.json
+    fi
+    if [ -f "npm-shrinkwrap.json" ]; then
+        git checkout -- npm-shrinkwrap.json
     fi
     if [ -f "composer.json" ]; then
         git checkout -- composer.json
