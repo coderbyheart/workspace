@@ -11,7 +11,8 @@
 FORMAT=$(echo -e "%w%f written")
 if [ -f .inotifyignore ];
 then
-    EXCLUDE="--exclude \"`cat .inotifyignore | sed -e 's/[\/&\\.]/\\\\&/g' | tr \\\\n \\|`\""
+    IGNORE=`cat .inotifyignore | sed -e 's/[\/&\\.]/\\\\&/g' | tr \\\\n \\|`
+    EXCLUDE="--exclude \"${IGNORE::-1}\""
 else
     EXCLUDE=""
 fi
