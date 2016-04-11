@@ -113,7 +113,7 @@ int main(void)
 
   XCloseDisplay(disp);
 
-  printf("%d %d %d %d\n",rw,rh,rx,ry);
+  printf("w%d h%d x%d y%d\n",rw,rh,rx,ry);
 
   return EXIT_SUCCESS;
 }
