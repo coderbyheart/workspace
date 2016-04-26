@@ -46,7 +46,7 @@ function commitPackage() {
                 git add npm-shrinkwrap.json
             fi
         fi
-        git commit -m "Release v$NEXT_VER"
+        git commit -m "chore(release): v$NEXT_VER"
     fi
 }
 
@@ -63,7 +63,9 @@ then
     commitPackage package.json
     commitPackage composer.json
     commitPackage setup.py
-    echo -e "Release v$NEXT_VER\n\n$LOG" | git tag v$NEXT_VER -s --file -
+    EMAIL=`git config --local --get user.email`
+    PGP_KEY=`gpg --keyid-format LONG --with-colons --list-secret-keys $EMAIL | grep sec | awk -F : '{ print $5; }'`
+    echo -e "Release v$NEXT_VER\n\n$LOG" | git tag v$NEXT_VER -s -u $PGP_KEY --file -
     git tag -v v$NEXT_VER
     git push origin v$NEXT_VER
     git push

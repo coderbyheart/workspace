@@ -11,13 +11,11 @@
 FORMAT=$(echo -e "%w%f written")
 if [ -f .inotifyignore ];
 then
-    IGNORE=`cat .inotifyignore | sed -e 's/[\/&\\.]/\\\\&/g' | tr \\\\n \\|`
-    EXCLUDE="--exclude \"${IGNORE::-1}\""
+    EXCLUDE="--fromfile .inotifyignore"
 else
     EXCLUDE=""
 fi
-"$@"
-while inotifywait -qre close_write $EXCLUDE --format "$FORMAT" .
+while inotifywait -qre close_write $EXCLUDE --exclude ./.git/index.lock --format "$FORMAT" .
 do
     "$@"
 done
