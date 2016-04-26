@@ -8,14 +8,14 @@
 # .git/*
 # tmp/*
 
-FORMAT=$(echo -e "%w%f written")
 if [ -f .inotifyignore ];
 then
-    EXCLUDE="--fromfile .inotifyignore"
+    EXCLUDE="--fromfile ./.inotifyignore"
 else
     EXCLUDE=""
 fi
-while inotifywait -qre close_write $EXCLUDE --exclude ./.git/index.lock --format "$FORMAT" .
+"$@"
+while inotifywait -qre close_write $EXCLUDE --format "%w%f written" .
 do
     "$@"
 done
