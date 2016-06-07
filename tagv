@@ -2,7 +2,7 @@
 
 STEP=${1:--p}
 
-LAST_VER=`git describe | awk -F - '{ print substr($1, 2); }'`
+LAST_VER=`git describe --tags $(git rev-list --tags --max-count=1) | awk -F - '{ print substr($1, 2); }'`
 MAX_MAJOR=`echo $LAST_VER | awk -F . '{ print $1; }'`
 MAX_MINOR=`echo $LAST_VER | awk -F . '{ print $2; }'`
 MAX_PATCH=`echo $LAST_VER | awk -F . '{ print $3; }'`
