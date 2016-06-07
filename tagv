@@ -8,6 +8,9 @@ MAX_MINOR=`echo $LAST_VER | awk -F . '{ print $2; }'`
 MAX_PATCH=`echo $LAST_VER | awk -F . '{ print $3; }'`
 
 case $STEP in
+-v)
+  NEXT_VER=$2
+  ;;
 -M)
   NEXT_VER="`(expr $MAX_MAJOR + 1)`.0.0"
   ;;
