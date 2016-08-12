@@ -67,6 +67,13 @@ then
     commitPackage composer.json
     commitPackage setup.py
     EMAIL=`git config --local --get user.email`
+    if [[ $EMAIL = "" ]]
+    then
+        echo "Author email in local git config not defined!"
+        echo "Set it via"
+        echo "$ git config user.email \"user@example.com\""
+        exit
+    fi
     PGP_KEY=`gpg --keyid-format LONG --with-colons --list-secret-keys $EMAIL | grep sec | awk -F : '{ print $5; }'`
     echo -e "Release v$NEXT_VER\n\n$LOG" | git tag v$NEXT_VER -s -u $PGP_KEY --file -
     git tag -v v$NEXT_VER
