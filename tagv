@@ -2,6 +2,9 @@
 
 STEP=${1:--p}
 
+echo "Ensuring we know all the latest tags …"
+git pull
+
 LAST_VER=`git describe --tags $(git rev-list --tags --max-count=1) | awk -F - '{ print substr($1, 2); }'`
 MAX_MAJOR=`echo $LAST_VER | awk -F . '{ print $1; }'`
 MAX_MINOR=`echo $LAST_VER | awk -F . '{ print $2; }'`
