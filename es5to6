@@ -1,0 +1,15 @@
+#!/bin/bash
+
+lebab --replace $1 --transform arrow
+lebab --replace $1 --transform for-of
+lebab --replace $1 --transform for-each
+lebab --replace $1 --transform arg-spread
+lebab --replace $1 --transform obj-method
+lebab --replace $1 --transform obj-shorthand
+lebab --replace $1 --transform no-strict
+lebab --replace $1 --transform multi-var
+lebab --replace $1 --transform let
+lebab --replace $1 --transform class
+lebab --replace $1 --transform commonjs
+lebab --replace $1 --transform template
+lebab --replace $1 --transform default-param
