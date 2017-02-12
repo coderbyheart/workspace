@@ -1,29 +1,26 @@
-#!/bin/bash
+#! /usr/bin/env bash
 
 # Replace in Files
 
 # Clean
-if [ "$1" == "--clean" ]
-then
-    for i in `find ./ -iname "*.rif-*"`
-    do
-        echo $i
-        rm $i
+if [ "$1" == "--clean" ]; then
+    for i in $(find ./ -iname "*.rif-*"); do
+        echo "$i"
+        rm "$i"
     done
-    exit;
+
+    exit
 fi
 
-if [ "$3x" == "x" ]
-then
+if [ "$3x" == "x" ]; then
     TYPE="php"
 else
-    TYPE=$3
+    TYPE="$3"
 fi
 
-SUFFIX=".rif-`date +%Y%m%d%H%M%S`"
+SUFFIX=".rif-$(date +%Y%m%d%H%M%S)"
 
-for i in `find ./ -iname "*.$TYPE" -print0 | xargs -0 grep -li $1`
-do
-    echo $i
-    sed -i$SUFFIX "s/$1/$2/g" $i
+for i in $(find ./ -iname "*.$TYPE" -print0 | xargs -0 grep -li $1); do
+    echo "$i"
+    sed -i"$SUFFIX" "s/$1/$2/g" "$i"
 done

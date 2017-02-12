@@ -1,94 +1,104 @@
-#!/bin/bash
+#! /usr/bin/env bash
 
 STEP=${1:--p}
 
 echo "Ensuring we know all the latest tags …"
 git pull
 
-LAST_VER=`git describe --tags $(git rev-list --tags --max-count=1) | awk -F - '{ print substr($1, 2); }'`
-MAX_MAJOR=`echo $LAST_VER | awk -F . '{ print $1; }'`
-MAX_MINOR=`echo $LAST_VER | awk -F . '{ print $2; }'`
-MAX_PATCH=`echo $LAST_VER | awk -F . '{ print $3; }'`
+LAST_VER="$(git describe --tags $(git rev-list --tags --max-count=1) | awk -F - '{ print substr($1, 2); }')"
+MAX_MAJOR="$(awk -F . '{ print $1; }' <<<"$LAST_VER")"
+MAX_MINOR="$(awk -F . '{ print $2; }' <<<"$LAST_VER")"
+MAX_PATCH="$(awk -F . '{ print $3; }' <<<"$LAST_VER")"
 
 case $STEP in
--v)
-  NEXT_VER=$2
-  ;;
--M)
-  NEXT_VER="`(expr $MAX_MAJOR + 1)`.0.0"
-  ;;
--m)
-  NEXT_VER="$MAX_MAJOR.`(expr $MAX_MINOR + 1)`.0"
-  ;;
-*)
-  NEXT_VER="$MAX_MAJOR.$MAX_MINOR.`(expr $MAX_PATCH + 1)`"
-  ;;
+    -v)
+        NEXT_VER="$2"
+    ;;
+    -M)
+        NEXT_VER="$((expr $MAX_MAJOR + 1)).0.0"
+    ;;
+    -m)
+        NEXT_VER="$MAX_MAJOR.$((expr $MAX_MINOR + 1)).0"
+    ;;
+    *)
+        NEXT_VER="$MAX_MAJOR.$MAX_MINOR.$((expr $MAX_PATCH + 1))"
+    ;;
 esac
 
 function updatePackage() {
-    if [ -f $1 ]; then
-        sed -i -r -e "s/\"version\":\W+\"$LAST_VER\"/\"version\": \"$NEXT_VER\"/" $1
+    if [ -f "$1" ]; then
+        sed -i -r -e "s/\"version\":\W+\"$LAST_VER\"/\"version\": \"$NEXT_VER\"/" "$1"
+
         if [ "$1" = "package.json" ]; then
             if [ -f npm-shrinkwrap.json ]; then
                 npm shrinkwrap
             fi
         fi
+
         git diff
     fi
 }
 
 function updateSetupPy() {
-    if [ -f $1 ]; then
-        sed -i -r -e "s/\"version\"=\W+\"$LAST_VER\"/\"version\"=\"$NEXT_VER\"/" $1
+    if [ -f "$1" ]; then
+        sed -i -r -e "s/\"version\"=\W+\"$LAST_VER\"/\"version\"=\"$NEXT_VER\"/" "$1"
         git diff
     fi
 }
 
 function commitPackage() {
-    if [ -f $1 ]; then
-        git add $1
+    if [ -f "$1" ]; then
+        git add "$1"
+
         if [ "$1" = "package.json" ]; then
             if [ -f npm-shrinkwrap.json ]; then
                 git add npm-shrinkwrap.json
             fi
         fi
+
         git commit -m "chore(release): v$NEXT_VER"
     fi
 }
 
-LOG=`git log --pretty=format:" - %s (%H)" v$LAST_VER..HEAD`
-echo $LOG
+LOG="$(git log --pretty=format:" - %s (%H)" v$LAST_VER..HEAD)"
+echo "$LOG"
 updatePackage package.json
 updatePackage composer.json
 updateSetupPy setup.py
 
 read -p "Update from v$LAST_VER to v$NEXT_VER? " -n 2 -r
-if [[ $REPLY =~ ^[Yy]$ ]]
-then
-    echo ""
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    echo
+
     commitPackage package.json
     commitPackage composer.json
     commitPackage setup.py
-    EMAIL=`git config --local --get user.email`
-    if [[ $EMAIL = "" ]]
-    then
+
+    EMAIL="$(git config --local --get user.email)"
+
+    if [ -z "$EMAIL" ]; then
         echo "Author email in local git config not defined!"
         echo "Set it via"
         echo "$ git config user.email \"user@example.com\""
         exit
     fi
-    PGP_KEY=`gpg --keyid-format LONG --with-colons --list-secret-keys $EMAIL | grep sec | awk -F : '{ print $5; }'`
-    echo -e "Release v$NEXT_VER\n\n$LOG" | git tag v$NEXT_VER -s -u $PGP_KEY --file -
-    git tag -v v$NEXT_VER
-    git push origin v$NEXT_VER
+
+    PGP_KEY="$(gpg --keyid-format LONG --with-colons --list-secret-keys $EMAIL | grep sec | awk -F : '{ print $5; }')"
+
+    echo -e "Release v$NEXT_VER\n\n$LOG" | git tag "v$NEXT_VER" -s -u "$PGP_KEY" --file -
+
+    git tag -v "v$NEXT_VER"
+    git push origin "v$NEXT_VER"
     git push
 else
     if [ -f "package.json" ]; then
         git checkout -- package.json
     fi
+
     if [ -f "npm-shrinkwrap.json" ]; then
         git checkout -- npm-shrinkwrap.json
     fi
+
     if [ -f "composer.json" ]; then
         git checkout -- composer.json
     fi
