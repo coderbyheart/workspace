@@ -15,13 +15,16 @@ case $STEP in
         NEXT_VER="$2"
     ;;
     -M)
-        NEXT_VER="$((expr $MAX_MAJOR + 1)).0.0"
+        NEXT_MAJOR=$(expr $MAX_MAJOR + 1)
+        NEXT_VER="$NEXT_MAJOR.0.0"
     ;;
     -m)
-        NEXT_VER="$MAX_MAJOR.$((expr $MAX_MINOR + 1)).0"
+        NEXT_MINOR=$(expr $MAX_MINOR + 1)
+        NEXT_VER="$MAX_MAJOR.$NEXT_MINOR.0"
     ;;
     *)
-        NEXT_VER="$MAX_MAJOR.$MAX_MINOR.$((expr $MAX_PATCH + 1))"
+        NEXT_PATCH=$(expr $MAX_PATCH + 1)
+        NEXT_VER="$MAX_MAJOR.$MAX_MINOR.$NEXT_PATCH"
     ;;
 esac
 
