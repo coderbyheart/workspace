@@ -29,7 +29,11 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
 
     git diff
 
-    git add package.json package-lock.json
+    git add package.json
+    if [[ -f package-lock.json ]];
+    then
+        git add package-lock.json
+    fi
     git commit -m "chore(release): $NEXT_VER"
 
     EMAIL="$(git config --local --get user.email)"
