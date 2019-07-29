@@ -7,18 +7,20 @@ LAST_VER=`/usr/bin/env node -e "console.log(require('./package.json').version);"
 STEP=${1:--p}
 case $STEP in
     -v)
-        NEXT_VER=`npm --no-git-tag-version version $2`
+        NEXT_VER=`npm version $2`
     ;;
     -M)
-        NEXT_VER=`npm --no-git-tag-version version major`
+        NEXT_VER=`npm version major`
     ;;
     -m)
-        NEXT_VER=`npm --no-git-tag-version version minor`
+        NEXT_VER=`npm version minor`
     ;;
     *)
-        NEXT_VER=`npm --no-git-tag-version version patch`
+        NEXT_VER=`npm version patch`
     ;;
 esac
+
+git tag -d v$NEXT_VER
 
 LOG="$(git log --pretty=format:" - %s (%H)" v$LAST_VER..HEAD)"
 echo "$LOG"
