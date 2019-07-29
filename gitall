@@ -1,0 +1,65 @@
+#!/usr/bin/env node
+
+const { spawn } = require('child_process')
+const fs = require('fs').promises
+const os = require('os')
+const path = require('path')
+const chalk = require('chalk')
+
+const run = async (cmd, cwd = process.cwd(), progress = false) => new Promise((resolve, reject) => {
+  const [command, ...args] = cmd
+  const p = spawn(command, args, { cwd })
+  const result = []
+  const errors = []
+  p.on('close', code => {
+    if (code !== 0) {
+      return reject(
+        new Error(
+          `${command} ${args &&
+          args.join(' ')} failed: ${errors.join(os.EOL)}`
+        )
+      )
+    }
+    return resolve(result.join(os.EOL))
+  })
+  p.stdout.on('data', data => {
+    result.push(data)
+    if (data && progress) {
+      data.toString().split(os.EOL).forEach(l => {
+        console.log(chalk.grey(`[${progress}] ${l}`))
+      })
+    }
+  })
+  p.stderr.on('data', data => {
+    errors.push(data)
+  })
+})
+
+const gitall = async (cmd) => {
+  const folders = await run(['ls', '-1'])
+  const gitFolders = (await Promise.all(folders.split(os.EOL).filter(f => f).map(folder => fs.stat(path.resolve(process.cwd(), folder, '.git')).then(() => ({ folder, isGit: true }))
+    .catch(() => ({ folder, isGit: false }))))).filter(({ isGit }) => isGit)
+
+  const res = await Promise.all(gitFolders.map(async ({ folder }) => {
+    const wd = path.resolve(process.cwd(), folder)
+    console.log(chalk.magenta(`[${folder}]`), chalk.yellow(wd))
+    try {
+      await run(cmd, wd, folder)
+      return { success: true, folder }
+    } catch (error) {
+      return { success: false, error, folder }
+    }
+  }))
+
+  res.forEach(({ success, error, folder }) => {
+    if (success) {
+      console.log(chalk.green(`[${folder}]`), chalk.whiteBright('OK'))
+    } else {
+      console.error(chalk.red(`[${folder}]`), chalk.red(error))
+    }
+  })
+}
+
+const [, , ...cmd] = process.argv
+
+gitall(cmd)
