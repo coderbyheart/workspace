@@ -4,50 +4,83 @@ const program = require('commander')
 const chalk = require('chalk')
 const Octokit = require('@octokit/rest')
 const path = require('path')
-const { parse } = require('url')
+const { URL } = require('url')
+const netrc = require('netrc')
+
+const myNetrc = netrc()
+const { login, password } = myNetrc['github.com']
 const pjson = require(path.resolve(process.cwd(), 'package.json'))
+const [, owner, repo] = new URL(pjson.repository.url).pathname.replace(/\.git$/, '').split('/')
+const octokit = new Octokit({ auth: { type: 'basic', username: login, password } })
 
-const bifravstCLI = async () => {
-	let ran = false
+const nub = async () => {
+  let ran = false
 
-	program.description('GitHub CLI')
+  program.description('GitHub CLI')
 
-	program
-		.command('issues')
-		.action(async (deviceId) => {
-			ran = true
-			const [, owner, repo] = parse(pjson.repository.url).path.replace(/\.git$/, '').split('/')
-			//const client = new Octokit()
-			const octokit = new Octokit()
-			octokit.issues.listForRepo({
-				owner,
-				repo,
-				state: 'open'
-			}).then(({ data }) => {
-				data.forEach(({number, title}) => {
-					console.log(` ${chalk.green(` #${number} `)} ${title}`)
-				})
-			})
-		})
-		.on('--help', () => {
-			console.log('')
-			console.log(
-				chalk.yellow(
-					'List issues in current repo.',
-				),
-			)
-			console.log('')
-		})
+  program
+    .command('issues')
+    .action(async (deviceId) => {
+      ran = true
+      octokit.issues.listForRepo({
+        owner,
+        repo,
+        state: 'open'
+      }).then(({ data }) => {
+        data.forEach(({ number, title }) => {
+          console.log(` ${chalk.green(` #${number} `)} ${title}`)
+        })
+      })
+    })
+    .on('--help', () => {
+      console.log('')
+      console.log(
+        chalk.yellow(
+          'List issues in current repo.'
+        )
+      )
+      console.log('')
+    })
 
-	program.parse(process.argv)
+  program
+    .command('close <issue>')
+    .option(
+      '-c, --comment <message>',
+      'Comment'
+    )
+    .action(async (issue, { comment }) => {
+      ran = true
+      octokit.issues.update({
+        owner,
+        repo,
+        state: 'closed',
+        issue_number: issue
+      }).then(() => octokit.issues.createComment({
+        owner,
+        repo,
+        issue_number: issue,
+        body: comment
+      }))
+    })
+    .on('--help', () => {
+      console.log('')
+      console.log(
+        chalk.yellow(
+          'Close the given issue.'
+        )
+      )
+      console.log('')
+    })
 
-	if (!ran) {
-		program.outputHelp(chalk.yellow)
-		throw new Error('No command selected!')
-	}
+  program.parse(process.argv)
+
+  if (!ran) {
+    program.outputHelp(chalk.yellow)
+    throw new Error('No command selected!')
+  }
 }
 
-bifravstCLI().catch(err => {
-	console.error(chalk.red(err))
-	process.exit(1)
+nub().catch(err => {
+  console.error(chalk.red(err))
+  process.exit(1)
 })
