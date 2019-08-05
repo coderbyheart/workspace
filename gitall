@@ -26,7 +26,7 @@ const run = async (cmd, cwd = process.cwd(), progress = false) => new Promise((r
     result.push(data)
     if (data && progress) {
       data.toString().split(os.EOL).forEach(l => {
-        console.log(chalk.grey(`[${progress}] ${l}`))
+        console.log(chalk.grey(`[${progress}]`), l)
       })
     }
   })
