@@ -19,5 +19,9 @@
   "devDependencies": {
     "chalk": "^2.4.2",
     "standard": "^13.1.0"
+  },
+  "dependencies": {
+    "@octokit/rest": "^16.28.7",
+    "commander": "^2.20.0"
   }
 }

@@ -1,0 +1,53 @@
+#!/usr/bin/env node
+
+const program = require('commander')
+const chalk = require('chalk')
+const Octokit = require('@octokit/rest')
+const path = require('path')
+const { parse } = require('url')
+const pjson = require(path.resolve(process.cwd(), 'package.json'))
+
+const bifravstCLI = async () => {
+	let ran = false
+
+	program.description('GitHub CLI')
+
+	program
+		.command('issues')
+		.action(async (deviceId) => {
+			ran = true
+			const [, owner, repo] = parse(pjson.repository.url).path.replace(/\.git$/, '').split('/')
+			//const client = new Octokit()
+			const octokit = new Octokit()
+			octokit.issues.listForRepo({
+				owner,
+				repo,
+				state: 'open'
+			}).then(({ data }) => {
+				data.forEach(({number, title}) => {
+					console.log(` ${chalk.green(` #${number} `)} ${title}`)
+				})
+			})
+		})
+		.on('--help', () => {
+			console.log('')
+			console.log(
+				chalk.yellow(
+					'List issues in current repo.',
+				),
+			)
+			console.log('')
+		})
+
+	program.parse(process.argv)
+
+	if (!ran) {
+		program.outputHelp(chalk.yellow)
+		throw new Error('No command selected!')
+	}
+}
+
+bifravstCLI().catch(err => {
+	console.error(chalk.red(err))
+	process.exit(1)
+})
