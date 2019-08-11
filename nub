@@ -20,7 +20,7 @@ const nub = async () => {
 
   program
     .command('issues')
-    .action(async (deviceId) => {
+    .action(async () => {
       ran = true
       octokit.issues.listForRepo({
         owner,
