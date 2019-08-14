@@ -37,11 +37,28 @@ const run = async (cmd, cwd = process.cwd(), progress = false) => new Promise((r
 
 const gitall = async (cmd) => {
   const folders = await run(['ls', '-1'])
-  const gitFolders = (await Promise.all(folders.split(os.EOL).filter(f => f).map(folder => fs.stat(path.resolve(process.cwd(), folder, '.git')).then(() => ({ folder, isGit: true }))
-    .catch(() => ({ folder, isGit: false }))))).filter(({ isGit }) => isGit)
+  const gitFolders = (await Promise.all(folders.split(os.EOL).filter(f => f)
+      .map(async folder => {
+        try {
+          await fs.stat(path.resolve(process.cwd(), folder, '.git'))
+        } catch {
+          return { folder, isGit: false }
+        }
+        // Should it be ignored?
+        try {
+          await fs.stat(path.resolve(process.cwd(), folder, '.gitallignore'))
+          return { folder, isGit: false, ignore: true }
+        } catch {
+        }
+        return { folder, isGit: true }
+      })))
 
-  const res = await Promise.all(gitFolders.map(async ({ folder }) => {
+  const res = await Promise.all(gitFolders.map(async ({ folder, isGit, ignore }) => {
     const wd = path.resolve(process.cwd(), folder)
+    if (ignore) {
+      console.log(chalk.gray.strikethrough(`[${folder}] ${wd}`))
+      return { ignored: true, folder }
+    }
     console.log(chalk.magenta(`[${folder}]`), chalk.yellow(wd))
     try {
       await run(cmd, wd, folder)
@@ -51,7 +68,11 @@ const gitall = async (cmd) => {
     }
   }))
 
-  res.forEach(({ success, error, folder }) => {
+  res.forEach(({ ignored, success, error, folder }) => {
+    if (ignored) {
+      console.log(chalk.gray(`[${folder}] Ignored`))
+      return
+    }
     if (success) {
       console.log(chalk.green(`[${folder}]`), chalk.whiteBright('OK'))
     } else {
