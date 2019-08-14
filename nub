@@ -27,8 +27,8 @@ const nub = async () => {
         repo,
         state: 'open'
       }).then(({ data }) => {
-        data.forEach(({ number, title, labels }) => {
-          console.log(` ${chalk.green(` #${number} `)} ${title} ${labels.map(({ name, color }) => chalk.bgHex(color)(` ${name} `))}`)
+        data.forEach(({ number, title, labels, html_url }) => {
+          console.log(` ${chalk.green(` #${number} `)} ${title} ${labels.map(({ name, color }) => chalk.bgHex(color)(` ${name} `))} ${chalk.blue(html_url)}`)
         })
       })
     })
