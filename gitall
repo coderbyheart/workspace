@@ -12,7 +12,7 @@ const run = async (cmd, cwd = process.cwd(), progress = false) =>
     const p = spawn(command, args, { cwd });
     const result = [];
     const errors = [];
-    p.on("close", code => {
+    p.on("close", (code) => {
       if (code !== 0) {
         return reject(
           new Error(
@@ -24,30 +24,30 @@ const run = async (cmd, cwd = process.cwd(), progress = false) =>
       }
       return resolve(result.join(os.EOL));
     });
-    p.stdout.on("data", data => {
+    p.stdout.on("data", (data) => {
       result.push(data);
       if (data && progress) {
         data
           .toString()
           .split(os.EOL)
-          .forEach(l => {
-            console.log(chalk.grey(`[${progress}]`), l);
+          .forEach((l) => {
+            console.log(progress, l);
           });
       }
     });
-    p.stderr.on("data", data => {
+    p.stderr.on("data", (data) => {
       errors.push(data);
     });
   });
 
-const gitall = async cmd => {
+const gitall = async (cmd) => {
   const folders = await run(["ls", "-1"]);
   const gitFolders = (
     await Promise.all(
       folders
         .split(os.EOL)
-        .filter(f => f)
-        .map(folder =>
+        .filter((f) => f)
+        .map((folder) =>
           fs
             .stat(path.resolve(process.cwd(), folder, ".git"))
             .then(() => ({ folder, isGit: true }))
@@ -63,21 +63,43 @@ const gitall = async cmd => {
     )
       .trim()
       .split("\n")
-      .map(s => s.trim());
+      .map((s) => s.trim());
   } catch {}
 
-  ignored.forEach(folder => {
+  ignored.forEach((folder) => {
     console.log(chalk.magenta(`[${folder}]`), chalk.grey("Ignored"));
   });
+
+  const branches = new Map();
+
+  await Promise.all(
+    gitFolders
+      .filter(({ folder }) => !ignored.includes(folder))
+      .map(async ({ folder }) => {
+        const wd = path.resolve(process.cwd(), folder);
+        const branch = await run(
+          ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+          wd
+        );
+        branches.set(folder, branch.trim());
+      })
+  );
+
+  const label = (folder) => [
+    chalk.magenta(folder),
+    chalk.grey("@"),
+    chalk.blueBright(branches.get(folder)),
+    chalk.grey(">"),
+  ];
 
   const res = await Promise.all(
     gitFolders
       .filter(({ folder }) => !ignored.includes(folder))
       .map(async ({ folder }) => {
         const wd = path.resolve(process.cwd(), folder);
-        console.log(chalk.magenta(`[${folder}]`), chalk.yellow(wd));
+        console.log(...label(folder), chalk.yellow(wd));
         try {
-          await run(cmd, wd, folder);
+          await run(cmd, wd, label(folder).join(" "));
           return { success: true, folder };
         } catch (error) {
           return { success: false, error, folder };
@@ -87,9 +109,9 @@ const gitall = async cmd => {
 
   res.forEach(({ success, error, folder }) => {
     if (success) {
-      console.log(chalk.green(`[${folder}]`), chalk.whiteBright("OK"));
+      console.log(...label(folder), chalk.greenBright("OK"));
     } else {
-      console.error(chalk.red(`[${folder}]`), chalk.red(error));
+      console.error(...label(folder), chalk.red(error));
     }
   });
 };
