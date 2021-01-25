@@ -6,6 +6,11 @@ const os = require("os");
 const path = require("path");
 const chalk = require("chalk");
 
+const byFilterArg = (match) => {
+  if (match === undefined) return () => true;
+  return (s) => s.includes(match);
+};
+
 const run = async (cmd, cwd = process.cwd(), progress = false) =>
   new Promise((resolve, reject) => {
     const [command, ...args] = cmd;
@@ -41,18 +46,16 @@ const run = async (cmd, cwd = process.cwd(), progress = false) =>
   });
 
 const gitall = async (cmd) => {
-  const folders = await run(["ls", "-1"]);
+  const folders = (await run(["ls", "-1"])).split(os.EOL).filter((f) => f);
+
   const gitFolders = (
     await Promise.all(
-      folders
-        .split(os.EOL)
-        .filter((f) => f)
-        .map((folder) =>
-          fs
-            .stat(path.resolve(process.cwd(), folder, ".git"))
-            .then(() => ({ folder, isGit: true }))
-            .catch(() => ({ folder, isGit: false }))
-        )
+      folders.filter(byFilterArg(process.env.REPO_FILTER)).map((folder) =>
+        fs
+          .stat(path.resolve(process.cwd(), folder, ".git"))
+          .then(() => ({ folder, isGit: true }))
+          .catch(() => ({ folder, isGit: false }))
+      )
     )
   ).filter(({ isGit }) => isGit);
 
@@ -65,6 +68,10 @@ const gitall = async (cmd) => {
       .split("\n")
       .map((s) => s.trim());
   } catch {}
+
+  ignored.push(
+    ...folders.filter((s) => !byFilterArg(process.env.REPO_FILTER)(s))
+  );
 
   ignored.forEach((folder) => {
     console.log(chalk.magenta(`[${folder}]`), chalk.grey("Ignored"));
