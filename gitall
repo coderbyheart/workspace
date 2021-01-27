@@ -8,7 +8,11 @@ const chalk = require("chalk");
 
 const byFilterArg = (match) => {
   if (match === undefined) return () => true;
-  return (s) => s.includes(match);
+  return (s) =>
+    match
+      .split(" ")
+      .map((s) => s.trim())
+      .reduce((matches, m) => matches || s.includes(m), false);
 };
 
 const run = async (cmd, cwd = process.cwd(), progress = false) =>
