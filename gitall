@@ -82,26 +82,33 @@ const gitall = async (cmd) => {
   });
 
   const branches = new Map();
+  const changes = new Map();
 
   await Promise.all(
     gitFolders
       .filter(({ folder }) => !ignored.includes(folder))
       .map(async ({ folder }) => {
         const wd = path.resolve(process.cwd(), folder);
-        const branch = await run(
-          ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-          wd
-        );
+        const [branch, hasChanges] = await Promise.all([
+          run(["git", "rev-parse", "--abbrev-ref", "HEAD"], wd),
+          run(["git", "status", "--porcelain"], wd),
+        ]);
         branches.set(folder, branch.trim());
+        changes.set(folder, hasChanges.trim().length > 0);
       })
   );
 
-  const label = (folder) => [
-    chalk.magenta(folder),
-    chalk.grey("@"),
-    chalk.blueBright(branches.get(folder)),
-    chalk.grey(">"),
-  ];
+  const label = (folder) => {
+    const l = [];
+    if (changes.get(folder)) l.push(chalk.green(" *"));
+    l.push(
+      chalk.magenta(folder),
+      chalk.grey("@"),
+      chalk.blueBright(branches.get(folder)),
+      chalk.grey(">")
+    );
+    return l;
+  };
 
   const res = await Promise.all(
     gitFolders
