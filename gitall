@@ -6,6 +6,14 @@ const os = require("os");
 const path = require("path");
 const chalk = require("chalk");
 
+const waitTimeSeconds = parseInt(process.env.WAIT ?? "0", 10);
+if (waitTimeSeconds > 0)
+  console.debug(
+    chalk.gray(`Wait time between commands:`),
+    chalk.green(waitTimeSeconds),
+    chalk.gray("seconds")
+  );
+
 const byFilterArg = (match) => {
   if (match === undefined) return () => true;
   return (s) =>
@@ -110,20 +118,49 @@ const gitall = async (cmd) => {
     return l;
   };
 
-  const res = await Promise.all(
-    gitFolders
-      .filter(({ folder }) => !ignored.includes(folder))
-      .map(async ({ folder }) => {
+  const foldersToRunOn = gitFolders.filter(
+    ({ folder }) => !ignored.includes(folder)
+  );
+
+  let res = [];
+
+  if (waitTimeSeconds > 0) {
+    // Serialize commands
+    const waitPromise = () =>
+      waitTimeSeconds > 0
+        ? new Promise((resolve) => setTimeout(resolve, waitTimeSeconds * 1000))
+        : Promise.resolve();
+
+    await foldersToRunOn.reduce(async (p, { folder }) => {
+      await p;
+      const wd = path.resolve(process.cwd(), folder);
+      console.log(...label(folder), chalk.yellow(wd));
+      try {
+        await run(cmd, wd, label(folder).join(" "));
+        res.push({ success: true, folder });
+      } catch (error) {
+        console.error(...label(folder), chalk.red(error));
+        res.push({ success: false, error, folder });
+      }
+
+      return waitPromise();
+    }, Promise.resolve());
+  } else {
+    // Run in parallel
+    res = await Promise.all(
+      foldersToRunOn.map(async ({ folder }) => {
         const wd = path.resolve(process.cwd(), folder);
         console.log(...label(folder), chalk.yellow(wd));
         try {
           await run(cmd, wd, label(folder).join(" "));
           return { success: true, folder };
         } catch (error) {
+          console.error(...label(folder), chalk.red(error));
           return { success: false, error, folder };
         }
       })
-  );
+    );
+  }
 
   res.forEach(({ success, error, folder }) => {
     if (success) {
